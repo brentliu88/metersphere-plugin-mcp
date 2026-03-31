@@ -1,0 +1,49 @@
+[
+  {"type":"input","field":"baseUrl","title":"Base URL","value":"https://your-host.example.com/mcp"},
+  {"type":"input","field":"connectTimeoutMs","title":"Connect Timeout (ms)","value":"5000"},
+  {"type":"input","field":"requestTimeoutMs","title":"Request Timeout (ms)","value":"30000"},
+  {
+    "type":"radio",
+    "field":"authorizationType",
+    "title":"Authorization Type",
+    "value":"none",
+    "options":[
+      {"label":"none","value":"none"},
+      {"label":"bearer","value":"bearer"},
+      {"label":"apikey","value":"apikey"},
+      {"label":"headers","value":"headers"}
+    ]
+  },
+  {"type":"input","field":"bearerToken","title":"Bearer Token","value":""},
+  {"type":"input","field":"apiKeyHeaderName","title":"API Key Header Name","value":"X-API-Key"},
+  {"type":"input","field":"apiKeyValue","title":"API Key Value","value":""},
+  {"type":"input","field":"customHeadersJson","title":"Custom Headers JSON","value":"{}"},
+  {
+    "type":"radio",
+    "field":"autoInitialize",
+    "title":"Auto Initialize",
+    "value":"true",
+    "options":[
+      {"label":"true","value":"true"},
+      {"label":"false","value":"false"}
+    ]
+  },
+  {"type":"input","field":"clientKey","title":"Client Key (optional)","value":""},
+  {"type":"input","field":"toolName","title":"Tool Name","value":"search_docs"},
+  {
+    "type":"input",
+    "field":"toolArgumentsJson",
+    "title":"Tool Arguments JSON",
+    "value":"{\"query\":\"mcp\"}",
+    "props":{
+      "rows":10,
+      "readonly":false,
+      "resize":"none",
+      "autofocus":false,
+      "type":"textarea",
+      "clearable":true,
+      "placeholder":"{\"query\":\"mcp\"}"
+    }
+  },
+  {"type":"input","field":"saveResultVariable","title":"Save Result Variable","value":"mcp.call"}
+]
