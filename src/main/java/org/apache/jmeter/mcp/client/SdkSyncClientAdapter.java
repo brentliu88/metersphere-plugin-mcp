@@ -11,16 +11,6 @@ public final class SdkSyncClientAdapter implements SdkSyncClientDelegate {
     }
 
     @Override
-    public boolean isInitialized() {
-        return delegate.isInitialized();
-    }
-
-    @Override
-    public McpSchema.InitializeResult getCurrentInitializationResult() {
-        return delegate.getCurrentInitializationResult();
-    }
-
-    @Override
     public McpSchema.InitializeResult initialize() {
         return delegate.initialize();
     }

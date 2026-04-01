@@ -20,16 +20,6 @@ public class UiScriptApiImpl extends UiScriptApi {
         LogUtil.info("init MCP ui scripts");
         List<UiScript> uiScripts = new LinkedList<>();
 
-        UiScript initialize = new UiScript(
-                "mcp_initialize",
-                "MCP Initialize",
-                "org.apache.jmeter.mcp.ms.MsMcpInitializeSampler",
-                getJson("/json/mcp-ui_initialize.json")
-        );
-        initialize.setJmeterClazz("AbstractSampler");
-        initialize.setFormOption(getJson("/json/mcp-ui_form.json"));
-        uiScripts.add(initialize);
-
         UiScript toolsList = new UiScript(
                 "mcp_tools_list",
                 "MCP Tools List",

@@ -1,10 +1,8 @@
 package org.apache.jmeter.mcp.sampler;
 
 import org.apache.jmeter.mcp.auth.NoAuthStrategy;
-import org.apache.jmeter.mcp.client.McpSessionContext;
 import org.apache.jmeter.mcp.client.McpOperations;
 import org.apache.jmeter.mcp.model.McpClientConfig;
-import org.apache.jmeter.mcp.model.McpInitializeResult;
 import org.apache.jmeter.mcp.model.McpListToolsResult;
 import org.apache.jmeter.mcp.model.McpToolCallResult;
 import org.apache.jmeter.mcp.runtime.McpSamplerSupport;
@@ -17,19 +15,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-import java.util.Map;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class McpSamplersTest {
     @BeforeEach
@@ -38,32 +32,33 @@ class McpSamplersTest {
     }
 
     @Test
-    void initializeSamplerReturnsSuccessPayload() throws Exception {
-        McpInitializeSampler sampler = new McpInitializeSampler();
-        sampler.setProperty("saveResultVariable", "mcp.init");
+    void toolsListSamplerReturnsSuccessPayload() throws Exception {
+        McpToolsListSampler sampler = new McpToolsListSampler();
+        sampler.setProperty("saveResultVariable", "mcp.tools");
         McpClientConfig config = config();
-        McpSessionContext context = new McpSessionContext();
-        context.clientKey("k1");
-        McpOperations client = mock(McpOperations.class);
-        when(client.initialize()).thenReturn(new McpInitializeResult("v1", JsonUtils.readTree("{}"), JsonUtils.readTree("{\"name\":\"server\"}"), "k1"));
+        JsonNode tools = JsonUtils.readTree("[{\"name\":\"echo\"}]");
+        FakeOperations client = new FakeOperations(
+                "v1",
+                new McpListToolsResult(tools, JsonUtils.readTree("{\"tools\":[{\"name\":\"echo\"}]}")),
+                null
+        );
 
         try (MockedStatic<McpSamplerSupport> mocked = mockStatic(McpSamplerSupport.class)) {
             mocked.when(() -> McpSamplerSupport.buildConfig(any())).thenReturn(config);
-            mocked.when(() -> McpSamplerSupport.buildSessionContext(any())).thenReturn(context);
-            mocked.when(() -> McpSamplerSupport.buildClient(config, context)).thenReturn(client);
+            mocked.when(() -> McpSamplerSupport.buildClient(config)).thenReturn(client);
 
             SampleResult result = sampler.sample(null);
 
             assertTrue(result.isSuccessful());
-            assertTrue(result.getResponseDataAsString().contains("\"clientKey\":\"k1\""));
-            assertEquals(result.getResponseDataAsString(), JMeterContextService.getContext().getVariables().get("mcp.init"));
-            mocked.verify(() -> McpSamplerSupport.persistSession(sampler, context));
+            assertTrue(result.getResponseDataAsString().contains("\"protocolVersion\":\"v1\""));
+            assertEquals(result.getResponseDataAsString(), JMeterContextService.getContext().getVariables().get("mcp.tools"));
+            assertTrue(client.closed);
         }
     }
 
     @Test
-    void initializeSamplerReturnsFailureOnException() throws Exception {
-        McpInitializeSampler sampler = new McpInitializeSampler();
+    void toolsListSamplerReturnsFailureOnException() throws Exception {
+        McpToolsListSampler sampler = new McpToolsListSampler();
 
         try (MockedStatic<McpSamplerSupport> mocked = mockStatic(McpSamplerSupport.class)) {
             mocked.when(() -> McpSamplerSupport.buildConfig(any())).thenThrow(new IllegalStateException("boom"));
@@ -76,46 +71,20 @@ class McpSamplersTest {
     }
 
     @Test
-    void toolsListSamplerAutoInitializesAndReturnsTools() throws Exception {
-        McpToolsListSampler sampler = new McpToolsListSampler();
-        sampler.setProperty("autoInitialize", "true");
-        McpClientConfig config = config();
-        McpSessionContext context = new McpSessionContext();
-        McpOperations client = mock(McpOperations.class);
-        JsonNode tools = JsonUtils.readTree("[{\"name\":\"echo\"}]");
-        when(client.listTools()).thenReturn(new McpListToolsResult(tools, JsonUtils.readTree("{\"tools\":[{\"name\":\"echo\"}]}")));
-
-        try (MockedStatic<McpSamplerSupport> mocked = mockStatic(McpSamplerSupport.class)) {
-            mocked.when(() -> McpSamplerSupport.buildConfig(any())).thenReturn(config);
-            mocked.when(() -> McpSamplerSupport.buildSessionContext(any())).thenReturn(context);
-            mocked.when(() -> McpSamplerSupport.buildClient(config, context)).thenReturn(client);
-
-            SampleResult result = sampler.sample(null);
-
-            verify(client).initialize();
-            assertTrue(result.isSuccessful());
-            assertTrue(result.getResponseDataAsString().contains("\"tools\""));
-        }
-    }
-
-    @Test
     void toolsCallSamplerMarksSampleFailedWhenToolReturnsError() throws Exception {
         McpToolsCallSampler sampler = new McpToolsCallSampler();
         sampler.setProperty("toolName", "echo");
         sampler.setProperty("toolArgumentsJson", "{\"msg\":\"hi\"}");
         McpClientConfig config = config();
-        McpSessionContext context = new McpSessionContext();
-        context.negotiatedProtocolVersion("v1");
-        context.clientKey("k1");
-        McpOperations client = mock(McpOperations.class);
-        when(client.callTool(eq("echo"), eq(Map.of("msg", "hi")), any())).thenReturn(
+        FakeOperations client = new FakeOperations(
+                "v1",
+                null,
                 new McpToolCallResult(JsonUtils.readTree("[]"), JsonUtils.readTree("{\"ok\":false}"), true, JsonUtils.readTree("{\"isError\":true}"))
         );
 
         try (MockedStatic<McpSamplerSupport> mocked = mockStatic(McpSamplerSupport.class)) {
             mocked.when(() -> McpSamplerSupport.buildConfig(any())).thenReturn(config);
-            mocked.when(() -> McpSamplerSupport.buildSessionContext(any())).thenReturn(context);
-            mocked.when(() -> McpSamplerSupport.buildClient(config, context)).thenReturn(client);
+            mocked.when(() -> McpSamplerSupport.buildClient(config)).thenReturn(client);
             mocked.when(() -> McpSamplerSupport.parseArguments("{\"msg\":\"hi\"}")).thenReturn(Map.of("msg", "hi"));
 
             SampleResult result = sampler.sample(null);
@@ -123,6 +92,9 @@ class McpSamplersTest {
             assertFalse(result.isSuccessful());
             assertTrue(result.getResponseMessage().contains("isError=true"));
             assertTrue(result.getResponseDataAsString().contains("\"toolName\":\"echo\""));
+            assertEquals("echo", client.lastToolName);
+            assertEquals(Map.of("msg", "hi"), client.lastArguments);
+            assertTrue(client.closed);
         }
     }
 
@@ -133,5 +105,45 @@ class McpSamplersTest {
                 Duration.ofSeconds(2),
                 new NoAuthStrategy()
         );
+    }
+
+    private static final class FakeOperations implements McpOperations {
+        private final String protocolVersion;
+        private final McpListToolsResult listToolsResult;
+        private final McpToolCallResult callToolResult;
+        private boolean closed;
+        private String lastToolName;
+        private Map<String, Object> lastArguments;
+
+        private FakeOperations(String protocolVersion, McpListToolsResult listToolsResult, McpToolCallResult callToolResult) {
+            this.protocolVersion = protocolVersion;
+            this.listToolsResult = listToolsResult;
+            this.callToolResult = callToolResult;
+        }
+
+        @Override
+        public String protocolVersion() {
+            return protocolVersion;
+        }
+
+        @Override
+        public McpListToolsResult listTools() {
+            return listToolsResult;
+        }
+
+        @Override
+        public McpToolCallResult callTool(String toolName, Map<String, Object> arguments, org.apache.jmeter.mcp.client.ProgressListener progressListener) {
+            this.lastToolName = toolName;
+            this.lastArguments = arguments;
+            if (progressListener != null) {
+                progressListener.onProgress("Handled by MCP Java SDK client", null, null);
+            }
+            return callToolResult;
+        }
+
+        @Override
+        public void closeSession() {
+            closed = true;
+        }
     }
 }

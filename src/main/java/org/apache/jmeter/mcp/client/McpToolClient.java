@@ -1,70 +1,45 @@
 package org.apache.jmeter.mcp.client;
 
-import org.apache.jmeter.mcp.model.McpInitializeResult;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.apache.jmeter.mcp.model.McpListToolsResult;
 import org.apache.jmeter.mcp.model.McpToolCallResult;
 import org.apache.jmeter.mcp.util.JsonUtils;
-import com.fasterxml.jackson.databind.JsonNode;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
-/**
- * High-level MCP client backed by the official MCP Java SDK.
- */
 public final class McpToolClient implements McpOperations {
     private static final Logger logger = LoggerFactory.getLogger(McpToolClient.class);
+
     private final SdkSyncClientDelegate delegate;
-    private volatile McpSessionContext sessionContext;
-    private volatile boolean initialized;
+    private volatile String protocolVersion;
 
-    public McpToolClient(SdkSyncClientDelegate delegate, McpSessionContext sessionContext) {
+    public McpToolClient(SdkSyncClientDelegate delegate) {
         this.delegate = delegate;
-        this.sessionContext = sessionContext;
-        syncContextFromClient();
     }
 
     @Override
-    public void adopt(McpSessionContext sessionContext) {
-        this.sessionContext = sessionContext;
-        syncContextFromClient();
+    public String protocolVersion() {
+        return protocolVersion;
     }
 
     @Override
-    public synchronized McpInitializeResult initialize() throws Exception {
-        if (!initialized) {
-            logger.info("Initializing MCP client. clientKey={}", sessionContext.clientKey());
-            McpSchema.InitializeResult result = delegate.initialize();
-            applyInitializeResult(result);
-            initialized = true;
-            logger.info("MCP client initialized. clientKey={}, protocolVersion={}",
-                    sessionContext.clientKey(), sessionContext.negotiatedProtocolVersion());
-        }
-        return new McpInitializeResult(
-                sessionContext.negotiatedProtocolVersion(),
-                sessionContext.capabilities(),
-                sessionContext.serverInfo(),
-                sessionContext.clientKey()
-        );
-    }
-
-    @Override
-    public McpListToolsResult listTools() throws Exception {
-        ensureInitialized();
-        logger.info("Listing MCP tools. clientKey={}", sessionContext.clientKey());
+    public synchronized McpListToolsResult listTools() throws Exception {
+        initialize();
+        logger.info("Listing MCP tools.");
         McpSchema.ListToolsResult result = delegate.listTools();
         JsonNode raw = JsonUtils.valueToTree(result);
         return new McpListToolsResult(raw.path("tools"), raw);
     }
 
     @Override
-    public McpToolCallResult callTool(String toolName,
-                                      Map<String, Object> arguments,
-                                      ProgressListener progressListener) throws Exception {
-        ensureInitialized();
-        logger.info("Calling MCP tool. clientKey={}, toolName={}", sessionContext.clientKey(), toolName);
+    public synchronized McpToolCallResult callTool(String toolName,
+                                                   Map<String, Object> arguments,
+                                                   ProgressListener progressListener) throws Exception {
+        initialize();
+        logger.info("Calling MCP tool. toolName={}", toolName);
         McpSchema.CallToolResult result = delegate.callTool(new McpSchema.CallToolRequest(toolName, arguments));
         JsonNode raw = JsonUtils.valueToTree(result);
         if (progressListener != null) {
@@ -80,31 +55,14 @@ public final class McpToolClient implements McpOperations {
 
     @Override
     public void closeSession() throws Exception {
-        logger.info("Closing MCP client session. clientKey={}", sessionContext.clientKey());
+        logger.info("Closing MCP client.");
         delegate.closeGracefully();
     }
 
-    private void ensureInitialized() throws Exception {
-        if (sessionContext.negotiatedProtocolVersion() == null || sessionContext.negotiatedProtocolVersion().isBlank()) {
-            initialize();
-        }
-    }
-
-    private void syncContextFromClient() {
-        if (delegate.isInitialized()) {
-            initialized = true;
-            applyInitializeResult(delegate.getCurrentInitializationResult());
-        }
-    }
-
-    private void applyInitializeResult(McpSchema.InitializeResult result) {
-        if (result == null) {
-            logger.warn("Received null MCP initialize result. clientKey={}", sessionContext.clientKey());
-            return;
-        }
-        JsonNode raw = JsonUtils.valueToTree(result);
-        sessionContext.negotiatedProtocolVersion(result.protocolVersion());
-        sessionContext.capabilities(raw.path("capabilities"));
-        sessionContext.serverInfo(raw.path("serverInfo"));
+    private void initialize() {
+        logger.info("Initializing MCP client for current sampler invocation.");
+        McpSchema.InitializeResult result = delegate.initialize();
+        protocolVersion = result == null ? null : result.protocolVersion();
+        logger.info("MCP client initialized. protocolVersion={}", protocolVersion);
     }
 }

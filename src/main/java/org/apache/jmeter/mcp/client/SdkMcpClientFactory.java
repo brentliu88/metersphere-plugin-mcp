@@ -12,13 +12,13 @@ import org.slf4j.LoggerFactory;
 import java.net.http.HttpClient;
 import java.util.Map;
 
-final class SdkMcpClientFactory {
+public final class SdkMcpClientFactory {
     private static final Logger logger = LoggerFactory.getLogger(SdkMcpClientFactory.class);
 
     private SdkMcpClientFactory() {
     }
 
-    static McpOperations create(McpClientConfig config, McpSessionContext sessionContext) {
+    public static McpOperations create(McpClientConfig config) {
         logger.info("Building MCP SDK transport. endpoint={}, connectTimeoutMs={}, requestTimeoutMs={}",
                 config.endpoint(), config.connectTimeout().toMillis(), config.requestTimeout().toMillis());
         HttpClientStreamableHttpTransport.Builder transportBuilder = HttpClientStreamableHttpTransport
@@ -39,7 +39,7 @@ final class SdkMcpClientFactory {
                 .capabilities(McpSchema.ClientCapabilities.builder().build())
                 .build();
         logger.info("MCP SDK client created. endpoint={}", config.endpoint());
-        return new McpToolClient(new SdkSyncClientAdapter(delegate), sessionContext);
+        return new McpToolClient(new SdkSyncClientAdapter(delegate));
     }
 
     private static McpSyncHttpClientRequestCustomizer requestCustomizer(Map<String, String> headers) {

@@ -1,14 +1,9 @@
 package org.apache.jmeter.mcp.client;
 
-import org.apache.jmeter.mcp.model.McpInitializeResult;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.apache.jmeter.mcp.model.McpListToolsResult;
 import org.apache.jmeter.mcp.model.McpToolCallResult;
-import io.modelcontextprotocol.spec.McpSchema;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
@@ -18,123 +13,96 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class McpToolClientTest {
-    @Mock
-    private SdkSyncClientDelegate delegate;
-
-    private McpSessionContext context;
-
-    @BeforeEach
-    void setUp() {
-        context = new McpSessionContext();
-        context.clientKey("client-1");
-    }
-
     @Test
-    void initializeCachesInitializationResult() throws Exception {
-        when(delegate.isInitialized()).thenReturn(false);
-        when(delegate.initialize()).thenReturn(new McpSchema.InitializeResult(
-                "2025-03-26",
-                null,
-                new McpSchema.Implementation("server", "1.0.0"),
-                "instructions"
-        ));
+    void listToolsInitializesBeforeListing() throws Exception {
+        FakeDelegate delegate = new FakeDelegate();
+        delegate.initializeResult = new McpSchema.InitializeResult("2025-03-26", null, null, null);
+        delegate.listToolsResult = new McpSchema.ListToolsResult(List.of(), null);
+        McpToolClient client = new McpToolClient(delegate);
 
-        McpToolClient client = new McpToolClient(delegate, context);
-        McpInitializeResult first = client.initialize();
-        McpInitializeResult second = client.initialize();
-
-        assertEquals("2025-03-26", first.protocolVersion());
-        assertEquals("client-1", first.clientKey());
-        assertEquals("server", first.serverInfo().path("name").asText());
-        assertEquals("2025-03-26", second.protocolVersion());
-        verify(delegate, times(1)).initialize();
-    }
-
-    @Test
-    void adoptCopiesCurrentInitializationStateFromDelegate() {
-        when(delegate.isInitialized()).thenReturn(true);
-        when(delegate.getCurrentInitializationResult()).thenReturn(new McpSchema.InitializeResult(
-                "2025-03-26",
-                null,
-                new McpSchema.Implementation("server", "1.0.0"),
-                "instructions"
-        ));
-        McpToolClient client = new McpToolClient(delegate, context);
-        McpSessionContext adopted = new McpSessionContext();
-        adopted.clientKey("client-2");
-
-        client.adopt(adopted);
-
-        assertEquals("2025-03-26", adopted.negotiatedProtocolVersion());
-        assertEquals("server", adopted.serverInfo().path("name").asText());
-    }
-
-    @Test
-    void listToolsAutoInitializesWhenNeeded() throws Exception {
-        when(delegate.isInitialized()).thenReturn(false);
-        when(delegate.initialize()).thenReturn(new McpSchema.InitializeResult(
-                "2025-03-26",
-                null,
-                new McpSchema.Implementation("server", "1.0.0"),
-                "instructions"
-        ));
-        when(delegate.listTools()).thenReturn(new McpSchema.ListToolsResult(List.of(), null));
-
-        McpToolClient client = new McpToolClient(delegate, context);
         McpListToolsResult result = client.listTools();
 
+        assertEquals(1, delegate.initializeCalls);
+        assertEquals(1, delegate.listCalls);
+        assertEquals("2025-03-26", client.protocolVersion());
         assertTrue(result.tools().isArray());
-        verify(delegate).initialize();
-        verify(delegate).listTools();
     }
 
     @Test
-    void callToolReturnsStructuredResultAndProgressMessage() throws Exception {
-        when(delegate.isInitialized()).thenReturn(true);
-        when(delegate.getCurrentInitializationResult()).thenReturn(new McpSchema.InitializeResult(
-                "2025-03-26",
-                null,
-                new McpSchema.Implementation("server", "1.0.0"),
-                "instructions"
-        ));
-        when(delegate.callTool(any())).thenReturn(new McpSchema.CallToolResult(List.of(), false, Map.of("ok", true), Map.of()));
+    void callToolInitializesAndReturnsProgressMessage() throws Exception {
+        FakeDelegate delegate = new FakeDelegate();
+        delegate.initializeResult = new McpSchema.InitializeResult("2025-03-26", null, null, null);
+        delegate.callToolResult = new McpSchema.CallToolResult(List.of(), false, Map.of("ok", true), Map.of());
+        McpToolClient client = new McpToolClient(delegate);
         AtomicReference<String> progressMessage = new AtomicReference<>();
 
-        McpToolClient client = new McpToolClient(delegate, context);
         McpToolCallResult result = client.callTool("echo", Map.of("a", 1), (message, progress, total) -> progressMessage.set(message));
 
+        assertEquals(1, delegate.initializeCalls);
+        assertEquals("echo", delegate.lastToolName);
+        assertEquals(Map.of("a", 1), delegate.lastArguments);
         assertFalse(result.isError());
         assertEquals(true, result.structuredContent().path("ok").asBoolean());
         assertEquals("Handled by MCP Java SDK client", progressMessage.get());
     }
 
     @Test
-    void closeSessionDelegatesGracefully() throws Exception {
-        when(delegate.isInitialized()).thenReturn(false);
-        when(delegate.closeGracefully()).thenReturn(true);
-        McpToolClient client = new McpToolClient(delegate, context);
+    void nullInitializeResultLeavesProtocolVersionNull() throws Exception {
+        FakeDelegate delegate = new FakeDelegate();
+        delegate.initializeResult = null;
+        delegate.listToolsResult = new McpSchema.ListToolsResult(List.of(), null);
+        McpToolClient client = new McpToolClient(delegate);
 
-        client.closeSession();
+        client.listTools();
 
-        verify(delegate).closeGracefully();
+        assertNull(client.protocolVersion());
     }
 
     @Test
-    void nullInitializeResultDoesNotOverwriteContext() throws Exception {
-        when(delegate.isInitialized()).thenReturn(false);
-        when(delegate.initialize()).thenReturn(null);
-        McpToolClient client = new McpToolClient(delegate, context);
+    void closeSessionDelegates() throws Exception {
+        FakeDelegate delegate = new FakeDelegate();
+        McpToolClient client = new McpToolClient(delegate);
 
-        McpInitializeResult result = client.initialize();
+        client.closeSession();
 
-        assertNull(result.protocolVersion());
-        assertNull(result.serverInfo());
+        assertTrue(delegate.closed);
+    }
+
+    private static final class FakeDelegate implements SdkSyncClientDelegate {
+        private McpSchema.InitializeResult initializeResult;
+        private McpSchema.ListToolsResult listToolsResult;
+        private McpSchema.CallToolResult callToolResult;
+        private int initializeCalls;
+        private int listCalls;
+        private boolean closed;
+        private String lastToolName;
+        private Map<String, Object> lastArguments;
+
+        @Override
+        public McpSchema.InitializeResult initialize() {
+            initializeCalls++;
+            return initializeResult;
+        }
+
+        @Override
+        public McpSchema.ListToolsResult listTools() {
+            listCalls++;
+            return listToolsResult;
+        }
+
+        @Override
+        public McpSchema.CallToolResult callTool(McpSchema.CallToolRequest request) {
+            lastToolName = request.name();
+            lastArguments = request.arguments();
+            return callToolResult;
+        }
+
+        @Override
+        public boolean closeGracefully() {
+            closed = true;
+            return true;
+        }
     }
 }

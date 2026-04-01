@@ -18,16 +18,5 @@
   {"type":"input","field":"apiKeyHeaderName","title":"API Key Header Name","value":"X-API-Key"},
   {"type":"input","field":"apiKeyValue","title":"API Key Value","value":""},
   {"type":"input","field":"customHeadersJson","title":"Custom Headers JSON","value":"{}"},
-  {
-    "type":"radio",
-    "field":"autoInitialize",
-    "title":"Auto Initialize",
-    "value":"true",
-    "options":[
-      {"label":"true","value":"true"},
-      {"label":"false","value":"false"}
-    ]
-  },
-  {"type":"input","field":"clientKey","title":"Client Key (optional)","value":""},
   {"type":"input","field":"saveResultVariable","title":"Save Result Variable","value":"mcp.tools"}
 ]

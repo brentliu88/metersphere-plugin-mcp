@@ -5,9 +5,8 @@ import org.apache.jmeter.mcp.auth.AuthStrategy;
 import org.apache.jmeter.mcp.auth.BearerTokenAuthStrategy;
 import org.apache.jmeter.mcp.auth.CustomHeadersAuthStrategy;
 import org.apache.jmeter.mcp.auth.NoAuthStrategy;
-import org.apache.jmeter.mcp.client.McpClientRegistry;
 import org.apache.jmeter.mcp.client.McpOperations;
-import org.apache.jmeter.mcp.client.McpSessionContext;
+import org.apache.jmeter.mcp.client.SdkMcpClientFactory;
 import org.apache.jmeter.mcp.model.McpClientConfig;
 import org.apache.jmeter.mcp.util.JsonUtils;
 import org.slf4j.Logger;
@@ -20,8 +19,6 @@ import java.util.Map;
 
 public final class McpSamplerSupport {
     private static final Logger logger = LoggerFactory.getLogger(McpSamplerSupport.class);
-    public static final String VAR_CLIENT_KEY = "MCP_CLIENT_KEY";
-    public static final String VAR_PROTOCOL_VERSION = "MCP_PROTOCOL_VERSION";
 
     private McpSamplerSupport() {
     }
@@ -38,38 +35,9 @@ public final class McpSamplerSupport {
         return config;
     }
 
-    public static McpSessionContext buildSessionContext(McpSamplerBase sampler) {
-        McpSessionContext context = new McpSessionContext();
-
-        String clientKey = sampler.getResolvedProperty("clientKey");
-        if (clientKey == null || clientKey.isBlank()) {
-            clientKey = sampler.getVar(VAR_CLIENT_KEY);
-        }
-        if (clientKey != null && !clientKey.isBlank()) {
-            context.clientKey(clientKey);
-        }
-
-        String negotiatedVersion = sampler.getVar(VAR_PROTOCOL_VERSION);
-        if (negotiatedVersion != null && !negotiatedVersion.isBlank()) {
-            context.negotiatedProtocolVersion(negotiatedVersion);
-        }
-        return context;
-    }
-
-    public static McpOperations buildClient(McpClientConfig config, McpSessionContext sessionContext) {
-        logger.info("Resolving MCP client. clientKey={}, endpoint={}", sessionContext.clientKey(), config.endpoint());
-        return McpClientRegistry.getOrCreate(config, sessionContext);
-    }
-
-    public static void persistSession(McpSamplerBase sampler, McpSessionContext sessionContext) {
-        if (sessionContext.clientKey() != null && !sessionContext.clientKey().isBlank()) {
-            sampler.setVar(VAR_CLIENT_KEY, sessionContext.clientKey());
-        }
-        if (sessionContext.negotiatedProtocolVersion() != null && !sessionContext.negotiatedProtocolVersion().isBlank()) {
-            sampler.setVar(VAR_PROTOCOL_VERSION, sessionContext.negotiatedProtocolVersion());
-        }
-        logger.info("Persisted MCP session context. clientKey={}, protocolVersion={}",
-                sessionContext.clientKey(), sessionContext.negotiatedProtocolVersion());
+    public static McpOperations buildClient(McpClientConfig config) {
+        logger.info("Creating stateless MCP client. endpoint={}", config.endpoint());
+        return SdkMcpClientFactory.create(config);
     }
 
     @SuppressWarnings("unchecked")

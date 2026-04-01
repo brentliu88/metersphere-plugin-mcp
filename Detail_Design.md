@@ -2,7 +2,12 @@
 
 ## 1. 目标
 
-将 MeterSphere 中的 MCP 调用链路切换为官方 Java SDK 客户端实现，不再由插件自己维护 Streamable HTTP、SSE 与 JSON-RPC 细节。
+提供基于 MCP Java SDK 的两个 MeterSphere 节点：
+
+1. `MCP Tools List`
+2. `MCP Tools Call`
+
+插件不暴露独立初始化节点，也不在插件层维护会话。
 
 ## 2. 核心架构
 
@@ -11,7 +16,7 @@ flowchart LR
     A[MeterSphere UI] --> B[MsTestElement]
     B --> C[JMeter Sampler]
     C --> D[McpSamplerSupport]
-    D --> E[McpClientRegistry]
+    D --> E[SdkMcpClientFactory]
     E --> F[McpToolClient]
     F --> G[MCP Java SDK]
     G --> H[Remote MCP Server]
@@ -19,41 +24,44 @@ flowchart LR
 
 ## 3. 设计原则
 
-1. UI 参数尽量稳定，避免影响已有节点定义。
-2. 协议细节下沉到 Java SDK。
-3. 插件只保留 MeterSphere 装配、鉴权参数转换、结果序列化与进程内 client 复用能力。
+1. 节点数量最小化，只保留用户真正操作的 `list` 与 `call`。
+2. 初始化细节下沉到客户端内部。
+3. 插件保持无状态，避免 session 变量、连接缓存和跨节点运行期耦合。
 
-## 4. 会话模型
+## 4. 调用模型
 
-### 4.1 旧模型
+### 4.1 Tools List
 
-- 插件自己发送 HTTP 请求
-- 插件自己读取 `MCP-Session-Id`
-- 插件把 `sessionId` 存入 JMeter 变量
+- 读取 sampler 配置
+- 创建 SDK client
+- 执行 `initialize`
+- 执行 `tools/list`
+- 返回结果
+- 关闭 SDK client
 
-### 4.2 新模型
+### 4.2 Tools Call
 
-- Java SDK 自己管理 Streamable HTTP 会话
-- 插件维护 `clientKey`
-- `clientKey` 对应一个存活中的 SDK client
-- 同一执行进程中的多个节点通过 `clientKey` 复用该 client
+- 读取 sampler 配置
+- 创建 SDK client
+- 执行 `initialize`
+- 执行 `tools/call`
+- 返回结果
+- 关闭 SDK client
 
 ## 5. 关键类职责
 
-- `McpClientRegistry`
-  - 负责 `clientKey` 到 `McpToolClient` 的缓存
-  - 防止同一个 `clientKey` 绑定不同连接配置
 - `SdkMcpClientFactory`
   - 创建 SDK transport 与 SDK client
-  - 把鉴权 header 注入 SDK HTTP request customizer
+  - 注入鉴权 header
 - `McpToolClient`
-  - 提供 `initialize()` / `listTools()` / `callTool()`
-  - 把 SDK 返回结果转换成插件内部 JSON 结果
+  - 封装内部初始化流程
+  - 暴露 `listTools()` 与 `callTool()`
+  - 保存本次调用协商得到的 `protocolVersion`
 - `McpSamplerSupport`
-  - 从 MeterSphere/JMeter 参数构造 config 与 session context
-  - 持久化 `MCP_CLIENT_KEY` 与 `MCP_PROTOCOL_VERSION`
+  - 从 MeterSphere/JMeter 参数构造 `McpClientConfig`
+  - 创建新的无状态客户端
 
-## 6. 表单字段变化
+## 6. 表单字段
 
 ### 保留
 
@@ -65,22 +73,17 @@ flowchart LR
 - `apiKeyHeaderName`
 - `apiKeyValue`
 - `customHeadersJson`
-- `autoInitialize`
 - `saveResultVariable`
-
-### 替换
-
-- `sessionId` -> `clientKey`
 
 ### 移除
 
-- 手工 `protocolVersion` 输入
-
-说明:
-协议版本改为以 SDK 初始化协商结果为准，不再由插件手动构造请求头强推。
+- 独立 `initialize` 节点
+- `autoInitialize`
+- `clientKey`
+- 插件侧 session 相关变量
 
 ## 7. 已知限制
 
-1. `clientKey` 只在当前执行进程内有效。
-2. 如果 SDK 或制品仓库中的实际 Maven 坐标与 `pom.xml` 中配置不一致，需要按你的仓库实际版本修正。
-3. 这里的进度日志目前只保留了“由 SDK 路径处理”的占位信息，没有复刻旧 HTTP/SSE 客户端的逐条 progress 事件解析。
+1. 每个 sampler 都会重新初始化一次 MCP client。
+2. 当前设计不会跨 sampler 共享连接或协议状态。
+3. 如果未来需要长连接或共享会话，需要单独引入新的运行时设计，而不是恢复旧的插件内 session 变量方案。

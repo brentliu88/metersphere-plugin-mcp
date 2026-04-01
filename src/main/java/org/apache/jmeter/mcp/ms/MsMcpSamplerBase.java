@@ -15,8 +15,6 @@ public abstract class MsMcpSamplerBase extends MsTestElement {
     private String apiKeyHeaderName;
     private String apiKeyValue;
     private String customHeadersJson;
-    private String autoInitialize;
-    private String clientKey;
     private String saveResultVariable;
 
     protected void applyCommonProperties(McpSamplerBase sampler, MsParameter config, String guiClass, String testClass) {
@@ -35,8 +33,6 @@ public abstract class MsMcpSamplerBase extends MsTestElement {
         sampler.setProperty("apiKeyHeaderName", this.apiKeyHeaderName);
         sampler.setProperty("apiKeyValue", this.apiKeyValue);
         sampler.setProperty("customHeadersJson", this.customHeadersJson);
-        sampler.setProperty("autoInitialize", this.autoInitialize);
-        sampler.setProperty("clientKey", this.clientKey);
         sampler.setProperty("saveResultVariable", this.saveResultVariable);
     }
 
@@ -110,22 +106,6 @@ public abstract class MsMcpSamplerBase extends MsTestElement {
 
     public void setCustomHeadersJson(String customHeadersJson) {
         this.customHeadersJson = customHeadersJson;
-    }
-
-    public String getAutoInitialize() {
-        return autoInitialize;
-    }
-
-    public void setAutoInitialize(String autoInitialize) {
-        this.autoInitialize = autoInitialize;
-    }
-
-    public String getClientKey() {
-        return clientKey;
-    }
-
-    public void setClientKey(String clientKey) {
-        this.clientKey = clientKey;
     }
 
     public String getSaveResultVariable() {

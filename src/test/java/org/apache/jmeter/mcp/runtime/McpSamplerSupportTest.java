@@ -4,7 +4,6 @@ import org.apache.jmeter.mcp.auth.ApiKeyAuthStrategy;
 import org.apache.jmeter.mcp.auth.BearerTokenAuthStrategy;
 import org.apache.jmeter.mcp.auth.CustomHeadersAuthStrategy;
 import org.apache.jmeter.mcp.auth.NoAuthStrategy;
-import org.apache.jmeter.mcp.client.McpSessionContext;
 import org.apache.jmeter.mcp.model.McpClientConfig;
 import org.apache.jmeter.samplers.SampleResult;
 import org.apache.jmeter.threads.JMeterContextService;
@@ -83,40 +82,6 @@ class McpSamplerSupportTest {
     }
 
     @Test
-    void buildSessionContextReadsClientKeyAndProtocolVersionFromSamplerAndVars() {
-        sampler.setProperty("clientKey", "explicit-key");
-        sampler.callSetVar(McpSamplerSupport.VAR_PROTOCOL_VERSION, "2025-03-26");
-
-        McpSessionContext context = McpSamplerSupport.buildSessionContext(sampler);
-
-        assertEquals("explicit-key", context.clientKey());
-        assertEquals("2025-03-26", context.negotiatedProtocolVersion());
-    }
-
-    @Test
-    void buildSessionContextFallsBackToVariables() {
-        sampler.callSetVar(McpSamplerSupport.VAR_CLIENT_KEY, "from-var");
-        sampler.callSetVar(McpSamplerSupport.VAR_PROTOCOL_VERSION, "from-version");
-
-        McpSessionContext context = McpSamplerSupport.buildSessionContext(sampler);
-
-        assertEquals("from-var", context.clientKey());
-        assertEquals("from-version", context.negotiatedProtocolVersion());
-    }
-
-    @Test
-    void persistSessionStoresVariables() {
-        McpSessionContext context = new McpSessionContext();
-        context.clientKey("k1");
-        context.negotiatedProtocolVersion("v1");
-
-        McpSamplerSupport.persistSession(sampler, context);
-
-        assertEquals("k1", sampler.callGetVar(McpSamplerSupport.VAR_CLIENT_KEY));
-        assertEquals("v1", sampler.callGetVar(McpSamplerSupport.VAR_PROTOCOL_VERSION));
-    }
-
-    @Test
     void parseArgumentsHandlesBlankAndJson() throws Exception {
         assertTrue(McpSamplerSupport.parseArguments("").isEmpty());
         assertEquals(Map.of("a", 1), McpSamplerSupport.parseArguments("{\"a\":1}"));
@@ -127,8 +92,5 @@ class McpSamplerSupportTest {
         public SampleResult sample(org.apache.jmeter.samplers.Entry e) {
             return null;
         }
-
-        void callSetVar(String name, String value) { setVar(name, value); }
-        String callGetVar(String name) { return getVar(name); }
     }
 }

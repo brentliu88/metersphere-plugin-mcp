@@ -2,7 +2,6 @@ package org.apache.jmeter.mcp.ms;
 
 import io.metersphere.plugin.core.MsTestElement;
 import org.apache.jorphan.collections.HashTree;
-import org.apache.jmeter.mcp.sampler.McpInitializeSampler;
 import org.apache.jmeter.mcp.sampler.McpToolsCallSampler;
 import org.apache.jmeter.mcp.sampler.McpToolsListSampler;
 import org.junit.jupiter.api.Test;
@@ -14,25 +13,30 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class MsSamplersTest {
     @Test
-    void initializeSamplerCopiesCommonProperties() {
-        MsMcpInitializeSampler ms = new MsMcpInitializeSampler();
-        ms.setEnable(true);
-        ms.setName("Init");
-        ms.setBaseUrl("https://example.com/mcp");
-        ms.setAuthorizationType("none");
-        ms.setConnectTimeoutMs("123");
-        ms.setRequestTimeoutMs("456");
-        ms.setClientKey("k1");
-        ms.setSaveResultVariable("saveVar");
+    void samplerBasePropertiesRoundTrip() {
+        TestMsSamplerBase base = new TestMsSamplerBase();
 
-        McpInitializeSampler sampler = ms.initSampler(null);
+        base.setComments("c");
+        base.setBaseUrl("https://example.com/mcp");
+        base.setConnectTimeoutMs("100");
+        base.setRequestTimeoutMs("200");
+        base.setAuthorizationType("bearer");
+        base.setBearerToken("token");
+        base.setApiKeyHeaderName("X-Key");
+        base.setApiKeyValue("value");
+        base.setCustomHeadersJson("{\"A\":\"1\"}");
+        base.setSaveResultVariable("save");
 
-        assertEquals("Init", sampler.getName());
-        assertEquals("https://example.com/mcp", sampler.getPropertyAsString("baseUrl"));
-        assertEquals("123", sampler.getPropertyAsString("connectTimeoutMs"));
-        assertEquals("456", sampler.getPropertyAsString("requestTimeoutMs"));
-        assertEquals("k1", sampler.getPropertyAsString("clientKey"));
-        assertEquals("saveVar", sampler.getPropertyAsString("saveResultVariable"));
+        assertEquals("c", base.getComments());
+        assertEquals("https://example.com/mcp", base.getBaseUrl());
+        assertEquals("100", base.getConnectTimeoutMs());
+        assertEquals("200", base.getRequestTimeoutMs());
+        assertEquals("bearer", base.getAuthorizationType());
+        assertEquals("token", base.getBearerToken());
+        assertEquals("X-Key", base.getApiKeyHeaderName());
+        assertEquals("value", base.getApiKeyValue());
+        assertEquals("{\"A\":\"1\"}", base.getCustomHeadersJson());
+        assertEquals("save", base.getSaveResultVariable());
     }
 
     @Test
@@ -41,6 +45,8 @@ class MsSamplersTest {
         list.setEnable(true);
         list.setName("List");
         list.setBaseUrl("https://example.com/mcp");
+        list.setConnectTimeoutMs("123");
+        list.setRequestTimeoutMs("456");
         McpToolsListSampler listSampler = list.initSampler(null);
 
         MsMcpToolsCallSampler call = new MsMcpToolsCallSampler();
@@ -49,9 +55,15 @@ class MsSamplersTest {
         call.setBaseUrl("https://example.com/mcp");
         call.setToolName("echo");
         call.setToolArgumentsJson("{\"a\":1}");
+        call.setClazzName("custom.Call");
         McpToolsCallSampler callSampler = call.initSampler(null);
 
         assertEquals("List", listSampler.getName());
+        assertNotNull(list.getClazzName());
+        assertEquals("123", listSampler.getPropertyAsString("connectTimeoutMs"));
+        assertEquals("custom.Call", call.getClazzName());
+        assertEquals("echo", call.getToolName());
+        assertEquals("{\"a\":1}", call.getToolArgumentsJson());
         assertEquals("echo", callSampler.getPropertyAsString("toolName"));
         assertEquals("{\"a\":1}", callSampler.getPropertyAsString("toolArgumentsJson"));
     }
@@ -59,7 +71,7 @@ class MsSamplersTest {
     @Test
     void toHashTreeAddsSamplerWhenEnabledAndSkipsWhenDisabled() {
         HashTree root = new HashTree();
-        MsMcpInitializeSampler enabled = new MsMcpInitializeSampler();
+        MsMcpToolsListSampler enabled = new MsMcpToolsListSampler();
         enabled.setEnable(true);
         enabled.setName("Enabled");
 
@@ -73,9 +85,16 @@ class MsSamplersTest {
         enabled.toHashTree(root, List.of(child), null);
         assertEquals(1, root.size());
 
-        MsMcpInitializeSampler disabled = new MsMcpInitializeSampler();
+        MsMcpToolsListSampler disabled = new MsMcpToolsListSampler();
         disabled.setEnable(false);
         disabled.toHashTree(new HashTree(), List.of(), null);
         assertNotNull(disabled.getClazzName());
+    }
+
+    private static final class TestMsSamplerBase extends MsMcpSamplerBase {
+        @Override
+        public String getClazzName() {
+            return "test";
+        }
     }
 }
